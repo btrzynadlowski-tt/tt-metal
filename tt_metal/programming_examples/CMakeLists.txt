@@ -9,6 +9,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/profiler)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/distributed)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/contributed)
 
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/bart_example)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/add_2_integers_in_compute)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/add_2_integers_in_riscv)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/eltwise_binary)
@@ -33,6 +34,7 @@ add_custom_target(
 
 install(
     DIRECTORY
+        bart_example
         add_2_integers_in_compute
         add_2_integers_in_riscv
         eltwise_binary
@@ -57,6 +59,7 @@ install(
 
 install(
     DIRECTORY
+        bart_example
         add_2_integers_in_compute
         add_2_integers_in_riscv
         eltwise_binary
