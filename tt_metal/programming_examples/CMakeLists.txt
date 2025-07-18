@@ -9,6 +9,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/profiler)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/distributed)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/contributed)
 
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/bart_matmul)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/bart_example)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/add_2_integers_in_compute)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/add_2_integers_in_riscv)
@@ -34,6 +35,7 @@ add_custom_target(
 
 install(
     DIRECTORY
+        bart_matmul
         bart_example
         add_2_integers_in_compute
         add_2_integers_in_riscv
@@ -59,6 +61,7 @@ install(
 
 install(
     DIRECTORY
+        bart_matmul
         bart_example
         add_2_integers_in_compute
         add_2_integers_in_riscv
