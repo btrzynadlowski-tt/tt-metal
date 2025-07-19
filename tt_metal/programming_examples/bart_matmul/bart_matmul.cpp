@@ -1,5 +1,3 @@
-// TODO: sender/receiver -> ingress/egress (relative to device)?
-
 #include <tt-metalium/host_api.hpp>
 #include <tt-metalium/device.hpp>
 
@@ -16,17 +14,9 @@ int main() {
 
     constexpr uint32_t single_tile_elements = tt::constants::TILE_WIDTH * tt::constants::TILE_HEIGHT;
     constexpr uint32_t single_tile_size = sizeof(float) * single_tile_elements;
-    constexpr uint32_t num_tiles = 3;  // operand A, operand B, result -- each stored in a tile
-    constexpr uint32_t buffer_size = num_tiles * single_tile_size;
-
-    // Create a buffer in SRAM for kernel working memory
-    tt::tt_metal::InterleavedBufferConfig l1_config{
-        .device = device,
-        .size = buffer_size,
-        .page_size = single_tile_size,  // page size should be tile size for efficiency
-        .buffer_type = tt::tt_metal::BufferType::L1};
-
-    std::shared_ptr<Buffer> l1_buffer = CreateBuffer(l1_config);
+    constexpr uint32_t operand_buffer_size = 2 * single_tile_size;  // operands A and B stored in separate tiles
+    constexpr uint32_t result_buffer_size = 1 * single_tile_size;   // result
+    constexpr uint32_t buffer_size = operand_buffer_size + result_buffer_size;  // buffer holds both operands and result contiguously
 
     /*
      * Create 2 4x4 matrices:
@@ -69,12 +59,21 @@ int main() {
 
     /*
      * Create circular buffers so that we can push data from one processor (e.g., the ingress data
-     * movement processor -> compute processor) to the other.
+     * movement processor -> compute processor -> egress data movement processor) to the other.
      */
-    constexpr uint32_t cb_index = CBIndex::c_1;
-    CircularBufferConfig cb_config = CircularBufferConfig(buffer_size, {{cb_index, tt::DataFormat::Float32}})
-                                         .set_page_size(cb_index, single_tile_size);
-    tt_metal::CreateCircularBuffer(program, core, cb_config);
+    constexpr uint32_t cb_to_compute_index = CBIndex::c_1;
+    CircularBufferConfig cb_to_compute_config = CircularBufferConfig(
+        operand_buffer_size,    // this CB only transfers the operands from ingress -> compute
+        {{cb_to_compute_index, tt::DataFormat::Float32}}
+    ).set_page_size(cb_to_compute_index, single_tile_size);
+    tt_metal::CreateCircularBuffer(program, core, cb_to_compute_config);
+
+    constexpr uint32_t cb_from_compute_index = CBIndex::c_16;
+    CircularBufferConfig cb_from_compute_config = CircularBufferConfig(
+        result_buffer_size,     // this CB is used to pass the result from compute -> egress
+        {{cb_from_compute_index, tt::DataFormat::Float32}}
+    ).set_page_size(cb_from_compute_index, single_tile_size);
+    tt_metal::CreateCircularBuffer(program, core, cb_from_compute_config);
 
     /*
      * Create data movement kernels that will copy from DRAM to SRAM and also support SRAM to
@@ -95,12 +94,10 @@ int main() {
 
     const std::vector<uint32_t> data_ingress_runtime_args = {
         0,  // ingress mode: copy from DRAM -> SRAM
-        l1_buffer->address(),
         dram_buffer->address()};
 
     const std::vector<uint32_t> data_egress_runtime_args = {
         1,  // egress mode: copy from SRAM -> DRAM
-        l1_buffer->address(),
         dram_buffer->address()};
 
     SetRuntimeArgs(program, data_ingress_kernel_id, core, data_ingress_runtime_args);
@@ -109,7 +106,20 @@ int main() {
     /*
      * Create compute kernel that will perform the matrix multiplication
      */
-    // TODO: ... write me ...
+
+    std::vector<uint32_t> compute_kernel_args = {};
+
+    KernelHandle compute_kernel_id = CreateKernel(
+        program,
+        OVERRIDE_KERNEL_PREFIX "bart_matmul/kernels/compute.cpp",
+        core,
+        ComputeConfig{
+            .math_fidelity = MathFidelity::HiFi4,
+            .fp32_dest_acc_en = false,
+            .math_approx_mode = false,
+            .compile_args = compute_kernel_args,
+        }
+    );
 
     // Run the program and wait for it to finish before reading memory back
     EnqueueProgram(cq, program, /*blocking=*/false);
