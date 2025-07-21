@@ -30,24 +30,21 @@ void kernel_main() {
     if (!is_egress) {
         // Ingress mode: DRAM -> SRAM (host sends to DRAM, ingress data movement processor pushes
         // to compute kernel via CB)
-        DPRINT << "got here 1" << ENDL();
         cb_reserve_back(cb_to_compute_id, 2);  // get 2 input operands
         uint32_t l1_buffer_addr = get_write_ptr(cb_to_compute_id);
+        DPRINT << "Ingress writes to=" << l1_buffer_addr << ", " << get_local_cb_interface(cb_to_compute_id).fifo_wr_ptr << ENDL();
         uint32_t operand1_addr = l1_buffer_addr;
         uint32_t operand2_addr = operand1_addr + single_tile_size;
         noc_async_read_tile(0, dram_buffer, operand1_addr);
         noc_async_read_tile(1, dram_buffer, operand2_addr);
         noc_async_read_barrier();
         cb_push_back(cb_to_compute_id, 2);
-
-        // Debug
-        float* src = reinterpret_cast<float*>(l1_buffer_addr);
-        DPRINT << "float=" << src[0] << ENDL();
     } else {
         // Egress mode: SRAM -> DRAM (egress data movement process pulls from compute kernel via a
         // second CB and then writes to DRAM)
         cb_wait_front(cb_from_compute_id, 1);
         uint32_t l1_buffer_addr = get_read_ptr(cb_from_compute_id);
+        DPRINT << "Egress reads result from=" << l1_buffer_addr << ENDL();
 
         // Write result to third tile (2) of DRAM buffer
         noc_async_write_tile(2, dram_buffer, l1_buffer_addr);

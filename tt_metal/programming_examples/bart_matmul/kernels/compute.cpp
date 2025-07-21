@@ -11,31 +11,44 @@
 #include "compute_kernel_api/tile_move_copy.h"
 #include "debug/dprint.h"  // required in all kernels using DPRINT
 
+#include "llk_io_pack.h"
+#include "llk_io_unpack.h"
+#include "llk_pack_api.h"
+
+#define CONCAT(a, b) a##b
+#define EXPAND_CONCAT(a, b) CONCAT(a, b)
+
+#define PROCESSOR UNPACK
+#define PRINT EXPAND_CONCAT(DPRINT_, PROCESSOR)
+
 namespace NAMESPACE {
 static inline void kernel() {
-    DPRINT_MATH(DPRINT << "Compute here" << ENDL());
-
     constexpr auto cb_to_compute_id = tt::CBIndex::c_1;     // from ingress processor to here
     constexpr auto cb_from_compute_id = tt::CBIndex::c_16;  // from here to egress processor
 
     const uint32_t single_tile_elements = 32 * 32;
     const uint32_t single_tile_size = sizeof(float) * single_tile_elements;
 
+    PRINT(DPRINT << "got here 1" << ENDL());
+    
     // Reserve space for result
-    cb_reserve_back(cb_from_compute_id, 1);
-    //volatile tt_l1_ptr uint32_t *result_ptr = get_cb_tiles_acked_ptr(cb_from_compute_id);
-    //uint32_t result_buffer_addr = get_write_ptr(cb_from_compute_id);
-    uint32_t result_addr = get_local_cb_interface(cb_from_compute_id).fifo_wr_ptr - 1;
+    //cb_reserve_back(cb_from_compute_id, 1);
+    llk_pack_hw_configure_disaggregated<DST_ACCUM_MODE, false>(cb_from_compute_id);
+    llk_pack_init(cb_from_compute_id);
+    llk_pack_dest_init<DST_ACCUM_MODE, false>();
+    llk_wait_for_free_tiles<false, false, false>(cb_from_compute_id, 1);
+    uint32_t result_addr = /*108096;*/get_local_cb_interface(cb_from_compute_id).fifo_wr_ptr - 0;
+
+    PRINT(DPRINT << "got here 2" << ENDL());
 
     // Wait for ingress processor to hand us two operands
-    cb_wait_front(cb_to_compute_id, 2);
-    //volatile tt_l1_ptr std::uint32_t *operand_ptr = get_cb_tiles_received_ptr(cb_to_compute_id);
-    //volatile tt_l1_ptr uint32_t *operand1_ptr = operand_ptr;
-    //volatile tt_l1_ptr uint32_t *operand2_ptr = operand1_ptr + single_tile_elements;
-    //uint32_t l1_operand_buffer_addr = get_read_ptr(cb_to_compute_id);
-    uint32_t l1_operand_buffer_addr = get_local_cb_interface(cb_to_compute_id).fifo_rd_ptr - 1;
+    //cb_wait_front(cb_to_compute_id, 2);
+    llk_wait_tiles(cb_to_compute_id, 2);
+    uint32_t l1_operand_buffer_addr = /*99904;*/get_local_cb_interface(cb_to_compute_id).fifo_rd_ptr - 0;
     uint32_t operand1_addr = l1_operand_buffer_addr;
     uint32_t operand2_addr = operand1_addr + single_tile_size;
+
+    PRINT(DPRINT << "Compute: read operand from=" << operand1_addr << ", write result to=" << result_addr << ENDL());
     
     // Copy operand 1 to result for now and add 0.25f everywhere
     //volatile tt_l1_ptr float *src = reinterpret_cast<volatile float *>(operand1_ptr);
@@ -57,6 +70,6 @@ void MAIN {
     constexpr auto cb_to_compute = tt::CBIndex::c_1;    // from ingress processor to here
     constexpr auto cb_from_compute = tt::CBIndex::c_2;  // from here to egress processor
     constexpr auto cb_out0 = tt::CBIndex::c_16;
-    MATH(kernel());
+    PROCESSOR(kernel());
 }
 }  // namespace NAMESPACE
