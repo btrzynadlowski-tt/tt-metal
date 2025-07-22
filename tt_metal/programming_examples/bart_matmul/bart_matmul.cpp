@@ -1,3 +1,50 @@
+/*
+ * bart_matmul.cpp
+ * Matrix multiplication using RISC-V instruction set on compute processor.
+ * 
+ * This example builds off of bart_example to perform a matrix multiplication on a compute
+ * processor. As before, we perform the multiplication using the RISC-V instruction set but on a
+ * compute processor this time rather than a data movement processor.
+ * 
+ * We use the processors in this configuration:
+ * 
+ *      1. Data Movement Processor (Ingress): Use NOC to copy two operands (each a 4x4 matrix) to
+ *         SRAM. Pass SRAM buffer address to the unpack compute processor via a circular buffer
+ *         (cb_to_compute).
+ *      2. Compute Processor (Unpack): Receives the SRAM address of the two 4x4 matrices from the
+ *         ingress processor. Invokes a function (that involves semaphores and can be invoked on
+ *         all three compute threads -- unpack, math, pack) that obtains the raw address.
+ *      3. Compute Processor (Math): Does nothing other than invoke the function that obtains the
+ *         buffer address.
+ *      4. Compute Processor (Pack): Obtains the operand address and then performs the actual
+ *         matmul. Uses a second circular buffer (cb_from_compute) to store the output as a tile in
+ *         SRAM.
+ *      5. Data Movement Processor (Egress): Uses the cb_from_compute circular buffer to receive
+ *         the 4x4 result matrix from pack and ships it to DRAM via the NOC, for the host to
+ *         access.
+ *
+ * The 3 compute processors are intended to be programmed using a single kernel. Internally, many
+ * of the functions use UNPACK(), MATH(), and PACK() macros to selectively enable code depending on
+ * which specific processor they are running on. The compute APIs are designed to use the FPU/SFPU
+ * and load data tiles into special registers. The circular buffer APIs differ between compute and
+ * data movement processors and are intended to be used in a very specific way to load data into
+ * registers. Therefore, a given circular buffer function will not do the same thing on pack, math,
+ * and unpack.
+ * 
+ * This demo abuses the APIs to move data manually. Using these APIs, it does not seem possible to
+ * use a single compute processor (e.g., math or pack), hence why both unpack and pack are
+ * involved. Theoretically, manual management of SRAM and custom circular buffer implementations
+ * are perfectly possible but we try to use existing functions here.
+ * 
+ * We store the 4x4 matrices in linear form one row at a time. Each number is a float, so each
+ * matrix takes 16 dwords but uses a whole tile for storage. A tile is 32x32 (1024) dwords. We
+ * ignore everything after the initial 16 dwords. 
+ * 
+ * We structure the two operands this way on the host and transfer them to a DRAM buffer on the TT
+ * device. After our kernels run, a single tile of output is copied back.
+ */
+
+
 #include <tt-metalium/host_api.hpp>
 #include <tt-metalium/device.hpp>
 

@@ -1,11 +1,10 @@
-//TODO: need new description that mentions how we abuse the APIs to use 2 CBs rather than three,
-//.     and how we perform math with the RISC-V ISA on the unpack processor rather than FPU/SFPU in
-//.     a math kernel.
 /*
- * Compute kernel. This runs on all 3 compute processors. This could normally introduce data races,
- * as each kernel is accessing the same regions of memory but this code is safe because the matrix
- * multiplications simply read the operands and then write the result without reading intermediate
- * results anywhere. So all 3 kernels will produce the same output and contention doesn't matter.
+ * Compute kernels that run on all 3 compute processors: unpack, math, pack.
+ *
+ * We abuse the circular buffer APIs to use only two CBs: one from ingress -> compute
+ * (cb_to_compute) and one from compute -> egress (cb_from_compute). Because of how code is
+ * selectively enabled depending on the compute processor, we cannot access both CBs from a single
+ * processor and have to use pack and unpack, with a call to cb_get_tile() in each processor.
  */
 
 #include <cstdint>
