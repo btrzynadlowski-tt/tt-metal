@@ -6,6 +6,22 @@ using namespace tt::tt_metal;
 #ifndef OVERRIDE_KERNEL_PREFIX
 #define OVERRIDE_KERNEL_PREFIX ""
 #endif
+
+static std::vector<float> matrix_multiply_4x4(const std::vector<float> &input_data, size_t operand_1_idx, size_t operand_2_idx) {
+    std::vector<float> result(4*4);
+    for (uint32_t row = 0; row < 4; row++) {
+        for (uint32_t col_b = 0; col_b < 4; col_b++) {
+            result[row * 4 + col_b] = 0.0f;
+            for (uint32_t col = 0; col < 4; col++) {
+                float a = input_data[operand_1_idx + row * 4 + col];
+                float b = input_data[operand_2_idx + col * 4 + col_b];
+                result[row * 4 + col_b] += a * b;
+            }
+        }
+    }
+    return result;
+}
+
 int main() {
     IDevice* device = CreateDevice(0);
     CommandQueue& cq = device->command_queue();
@@ -128,7 +144,7 @@ int main() {
     EnqueueReadBuffer(cq, dram_buffer, result, /*blocking*/ true);
 
     // Print and validate
-    std::vector<float> expected{250, 260, 270, 280, 618, 644, 670, 696, 986, 1028, 1070, 1112, 1354, 1412, 1470, 1528};
+    std::vector<float> expected = matrix_multiply_4x4(input_data, operand_1_idx, operand_2_idx);//{250, 260, 270, 280, 618, 644, 670, 696, 986, 1028, 1070, 1112, 1354, 1412, 1470, 1528};
     size_t i = 0;
     bool pass = true;
     for (size_t y = 0; y < 4; y++) {

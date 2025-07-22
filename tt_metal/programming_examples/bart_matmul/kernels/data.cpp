@@ -39,6 +39,8 @@ void kernel_main() {
         noc_async_read_tile(1, dram_buffer, operand2_addr);
         noc_async_read_barrier();
         cb_push_back(cb_to_compute_id, 2);
+
+        DPRINT << "Ingress done" << ENDL();
     } else {
         // Egress mode: SRAM -> DRAM (egress data movement process pulls from compute kernel via a
         // second CB and then writes to DRAM)
@@ -51,5 +53,7 @@ void kernel_main() {
         noc_async_write_barrier();
 
         cb_pop_front(cb_from_compute_id, 1);
+
+        DPRINT << "Egress done" << ENDL();
     }
 }
